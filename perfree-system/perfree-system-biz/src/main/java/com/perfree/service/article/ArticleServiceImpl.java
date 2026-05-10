@@ -20,6 +20,9 @@ import com.perfree.controller.auth.journal.vo.JournalAddReqVO;
 import com.perfree.controller.auth.journal.vo.JournalPageReqVO;
 import com.perfree.controller.auth.journal.vo.JournalRespVO;
 import com.perfree.controller.auth.journal.vo.JournalUpdateReqVO;
+import com.perfree.controller.auth.note.vo.NoteAddReqVO;
+import com.perfree.controller.auth.note.vo.NotePageReqVO;
+import com.perfree.controller.auth.note.vo.NoteUpdateReqVO;
 import com.perfree.controller.common.article.vo.ArchivePageReqVO;
 import com.perfree.controller.common.article.vo.ArchiveRespVO;
 import com.perfree.convert.article.ArticleConvert;
@@ -320,6 +323,96 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         Article article = ArticleConvert.INSTANCE.convertModelByVisibilityVO(updateReqVO);
         articleMapper.updateById(article);
         return true;
+    }
+
+    @Override
+    public PageResult<ArticleRespVO> notePage(NotePageReqVO pageVO) {
+        SortingFieldUtils.handleCustomSortingField(pageVO, ListUtil.of(
+                new SortingField("createTime", SortingField.ORDER_DESC)
+        ));
+        IPage<ArticleRespVO> page = MyBatisUtils.buildPage(pageVO, pageVO.getSortingFields());
+        ArticlePageReqVO articlePageReqVO = new ArticlePageReqVO();
+        articlePageReqVO.setPageNo(pageVO.getPageNo());
+        articlePageReqVO.setPageSize(pageVO.getPageSize());
+        articlePageReqVO.setType(ArticleConstant.ARTICLE_TYPE_NOTE);
+        articlePageReqVO.setTitle(pageVO.getTitle());
+        articlePageReqVO.setCategoryId(pageVO.getCategoryId());
+        articlePageReqVO.setStatus(pageVO.getStatus());
+        articlePageReqVO.setVisibility(pageVO.getVisibility());
+        IPage<ArticleRespVO> notePage = articleMapper.articlePage(page, articlePageReqVO, SecurityFrameworkUtils.getLoginUserId());
+        return new PageResult<>(notePage.getRecords(), notePage.getTotal());
+    }
+
+    @Override
+    @Transactional
+    public ArticleRespVO createNote(NoteAddReqVO noteAddReqVO) {
+        if (null != noteAddReqVO.getAddTags() && !noteAddReqVO.getAddTags().isEmpty()) {
+            List<Tag> tagList = tagService.batchAddTagByName(noteAddReqVO.getAddTags());
+            if (null == noteAddReqVO.getTagIds()) {
+                noteAddReqVO.setTagIds(new java.util.ArrayList<>());
+            }
+            for (Tag tag : tagList) {
+                noteAddReqVO.getTagIds().add(tag.getId());
+            }
+        }
+        Article article = ArticleConvert.INSTANCE.convertByNoteAddReqVO(noteAddReqVO);
+        article.setType(ArticleConstant.ARTICLE_TYPE_NOTE);
+        article.setSlug("note_" + System.currentTimeMillis());
+        article.setViewCount(SystemConstants.DEFAULT_COUNT);
+        article.setGreatCount(SystemConstants.DEFAULT_COUNT);
+        article.setIsTop(0);
+        article.setIsComment(1);
+        article.setSummary(genSummary(article.getSummary(), article.getParseContent()));
+        articleMapper.insert(article);
+
+        if (null != noteAddReqVO.getTagIds() && !noteAddReqVO.getTagIds().isEmpty()) {
+            articleTagService.handleArticleTag(noteAddReqVO.getTagIds(), article.getId());
+        }
+
+        if (null != noteAddReqVO.getCategoryIds() && !noteAddReqVO.getCategoryIds().isEmpty()) {
+            articleCategoryService.handleArticleCategory(noteAddReqVO.getCategoryIds(), article.getId());
+        }
+        return articleMapper.getArticleById(article.getId());
+    }
+
+    @Override
+    @Transactional
+    public ArticleRespVO updateNote(NoteUpdateReqVO noteUpdateReqVO) {
+        ArticleRespVO articleById = articleMapper.getArticleById(noteUpdateReqVO.getId());
+        if (null == articleById) {
+            throw new ServiceException(ErrorCode.ARTICLE_NOT_EXIST);
+        }
+        if (null != noteUpdateReqVO.getAddTags() && !noteUpdateReqVO.getAddTags().isEmpty()) {
+            List<Tag> tagList = tagService.batchAddTagByName(noteUpdateReqVO.getAddTags());
+            if (null == noteUpdateReqVO.getTagIds()) {
+                noteUpdateReqVO.setTagIds(new java.util.ArrayList<>());
+            }
+            for (Tag tag : tagList) {
+                noteUpdateReqVO.getTagIds().add(tag.getId());
+            }
+        }
+        Article article = ArticleConvert.INSTANCE.convertByNoteUpdateReqVO(noteUpdateReqVO);
+        article.setType(ArticleConstant.ARTICLE_TYPE_NOTE);
+        article.setSummary(genSummary(article.getSummary(), article.getParseContent()));
+        articleMapper.updateById(article);
+
+        if (null != noteUpdateReqVO.getTagIds()) {
+            articleTagService.handleArticleTag(noteUpdateReqVO.getTagIds(), article.getId());
+        }
+
+        if (null != noteUpdateReqVO.getCategoryIds()) {
+            articleCategoryService.handleArticleCategory(noteUpdateReqVO.getCategoryIds(), article.getId());
+        }
+        return articleMapper.getArticleById(article.getId());
+    }
+
+    @Override
+    public ArticleRespVO getNoteById(Integer id) {
+        ArticleRespVO articleById = articleMapper.getArticleById(id);
+        if (articleById.getStatus().equals(ArticleConstant.ARTICLE_STATUS_ONLY_SELF) && !articleById.getUser().getId().equals(SecurityFrameworkUtils.getLoginUserId())) {
+            throw new ServiceException(ErrorCode.NO_PERMISSION_PREVIEW);
+        }
+        return articleById;
     }
 
     /**

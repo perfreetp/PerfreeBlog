@@ -1,0 +1,596 @@
+<template>
+  <div class="note-page">
+    <el-row :gutter="10" style="height: 100%;">
+      <el-col :span="6" class="left-panel">
+        <div class="tree-header">
+          <el-button :icon="Plus" type="primary" size="small" @click="handleAddCategory" v-hasPermission="['admin:category:create']">新增分类</el-button>
+          <el-button :icon="Refresh" circle size="small" @click="initTree" />
+        </div>
+        <el-tree
+            ref="treeRef"
+            :data="treeData"
+            :props="treeProps"
+            node-key="id"
+            :expand-on-click-node="false"
+            :lazy="true"
+            :load="loadNode"
+            :check-strictly="false"
+            @node-click="handleNodeClick"
+            class="note-tree"
+            default-expand-all
+        >
+          <template #default="{ node, data }">
+            <div class="tree-node" :class="{ 'note-item': data.type === 'note' }">
+              <el-icon v-if="data.type === 'category'" class="node-icon"><FolderOpened /></el-icon>
+              <el-icon v-else class="node-icon"><Edit /></el-icon>
+              <span class="node-label">{{ data.label || data.name || data.title }}</span>
+              <div class="node-actions" v-if="data.type === 'note'">
+                <el-button link type="danger" size="small" :icon="Delete" @click.stop="handleDeleteNote(data)" v-hasPermission="['admin:note:delete']"></el-button>
+              </div>
+            </div>
+          </template>
+        </el-tree>
+      </el-col>
+
+      <el-col :span="18" class="right-panel">
+        <div class="editor-header">
+          <span class="note-title" v-if="currentNote">{{ currentNote.title }}</span>
+          <span class="note-title placeholder" v-else>请选择或新建笔记</span>
+          <div class="header-actions">
+            <el-button :icon="Plus" type="primary" @click="handleAddNote" v-hasPermission="['admin:note:create']">新增笔记</el-button>
+            <el-button v-if="currentNote" @click="saveNote(0)" :icon="Check">保存并发布</el-button>
+            <el-button v-if="currentNote" @click="saveNote(1)" :icon="Edit">保存为草稿</el-button>
+          </div>
+        </div>
+
+        <div class="editor-area" v-if="currentNote">
+          <div class="note-info-bar">
+            <el-form :inline="true" :model="noteForm" class="note-info-form">
+              <el-form-item label="分类">
+                <el-tree-select
+                    v-model="noteForm.categoryIds"
+                    :data="categoryData"
+                    :props="treeSelectProps"
+                    check-strictly
+                    :render-after-expand="false"
+                    style="width: 200px"
+                    clearable
+                    multiple
+                    placeholder="请选择分类"
+                />
+              </el-form-item>
+              <el-form-item label="标签">
+                <el-select v-model="noteForm.selectTags" multiple filterable allow-create default-first-option
+                  :reserve-keyword="false" placeholder="请选择或新增标签" value-key="id" style="width: 200px">
+                  <el-option v-for="item in tagData" :key="item.id" :label="item.name" :value="item" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="可见性">
+                <el-switch v-model="noteForm.visibility" :active-value="0" :inactive-value="1" inline-prompt
+                  style="--el-switch-on-color: var(--el-color-success); --el-switch-off-color: var(--el-color-warning);"
+                  active-text="公开" inactive-text="私密"/>
+              </el-form-item>
+            </el-form>
+          </div>
+
+          <div class="editor-wrapper">
+            <input
+                v-model="noteForm.title"
+                class="note-title-input"
+                placeholder="请输入笔记标题..."
+            />
+            <custom-editor :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef" v-if="!initLoading"></custom-editor>
+          </div>
+        </div>
+
+        <div class="empty-state" v-else>
+          <el-empty description="请选择左侧笔记或点击右侧按钮新建笔记">
+            <el-button type="primary" :icon="Plus" @click="handleAddNote" v-hasPermission="['admin:note:create']">新建笔记</el-button>
+          </el-empty>
+        </div>
+      </el-col>
+    </el-row>
+
+    <el-dialog v-model="categoryDialogVisible" :title="categoryDialogTitle" :width="600" draggable>
+      <el-form
+          ref="categoryFormRef"
+          :model="categoryForm"
+          label-width="100px"
+          status-icon
+          :rules="categoryRules"
+          v-loading="categoryLoading"
+      >
+        <el-form-item label="父级分类" prop="pid">
+          <el-tree-select
+              v-model="categoryForm.pid"
+              :data="categoryTreeData"
+              :props="treeSelectProps"
+              check-strictly
+              :render-after-expand="false"
+              style="width: 100%"
+              node-key="id"
+              ref="categoryTreeRef"
+              clearable
+          />
+        </el-form-item>
+        <el-form-item label="分类名称" prop="name" @change="categoryNameChange">
+          <el-input v-model="categoryForm.name" placeholder="请输入分类名称"/>
+        </el-form-item>
+
+        <el-form-item label="分类描述" prop="desc">
+          <el-input v-model="categoryForm.desc" placeholder="请输入分类描述" :autosize="{ minRows: 3, maxRows: 6 }"
+                    type="textarea"/>
+        </el-form-item>
+
+        <el-form-item label="分类slug" prop="slug">
+          <el-input v-model="categoryForm.slug" placeholder="请输入分类slug"/>
+        </el-form-item>
+
+        <el-form-item label="封面图" prop="thumbnail">
+          <attach-select-input :attach-type="'img'" :enable-input="true" :placeholder="'请选择封面图'" v-model:model-value="categoryForm.thumbnail"></attach-select-input>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <span class="dialog-footer">
+              <el-button type="primary" @click="submitCategoryForm">确 定</el-button>
+              <el-button @click="categoryDialogVisible = false; resetCategoryForm()">取 消</el-button>
+        </span>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import {Check, Delete, Edit, FolderOpened, Plus, Refresh} from "@element-plus/icons-vue";
+import {categoryAddApi, categoryListTreeApi, categoryUpdateApi} from "../api/category.js";
+import {noteAddApi, noteDelApi, noteGetApi, notePageApi, updateNoteApi} from "../api/note.js";
+import {getAllTag} from "../api/tag.js";
+import {handleTree} from "@/core/utils/perfree.js";
+import AttachSelectInput from "@/core/components/attach/attach-select-input.vue";
+import CustomEditor from "@/core/components/editor/custom-editor.vue";
+import {ElMessage, ElMessageBox} from "element-plus";
+import {reactive, ref} from "vue";
+import pinyin from 'js-pinyin'
+
+const treeRef = ref();
+const treeProps = reactive({
+  children: 'children',
+  label: 'name',
+  isLeaf: 'isLeaf'
+});
+const treeSelectProps = reactive({
+  children: 'children',
+  label: 'name',
+  value: 'id',
+});
+
+const treeData = ref([]);
+const categoryData = ref([]);
+const tagData = ref([]);
+const currentNote = ref(null);
+const initLoading = ref(false);
+const editorRef = ref();
+
+const noteForm = ref({
+  id: null,
+  title: '',
+  content: '',
+  parseContent: '',
+  selectTags: [],
+  categoryIds: [],
+  contentModel: 'AiEditor',
+  visibility: 0,
+  status: 1
+});
+
+const categoryDialogVisible = ref(false);
+const categoryDialogTitle = ref("");
+const categoryFormRef = ref();
+const categoryTreeRef = ref();
+const categoryLoading = ref(false);
+const categoryTreeData = ref([]);
+
+const categoryForm = ref({
+  pid: -1,
+  id: '',
+  name: '',
+  desc: '',
+  thumbnail: '',
+  slug: ''
+});
+
+const categoryRules = reactive({
+  pid: [{required: true, message: '请选择父级分类', trigger: 'blur'}],
+  name: [{required: true, message: '请输入分类名称', trigger: 'blur'}],
+});
+
+function initTree() {
+  categoryListTreeApi({}).then((res) => {
+    const categories = handleTree(res.data, "id", "pid", 'children', -1);
+    treeData.value = categories.map(category => ({
+      ...category,
+      type: 'category',
+      label: category.name,
+      isLeaf: false
+    }));
+    categoryData.value = [{id: -1, name: '主类目', children: handleTree(res.data, "id", "pid", 'children', -1)}];
+  });
+}
+
+function initTag() {
+  getAllTag().then((res) => {
+    tagData.value = res.data;
+  });
+}
+
+function loadNode(node, resolve) {
+  if (node.level === 0) {
+    return resolve(treeData.value);
+  }
+  if (node.data.type === 'category') {
+    notePageApi({
+      pageNo: 1,
+      pageSize: 1000,
+      categoryId: node.data.id,
+      type: 'note'
+    }).then((res) => {
+      const notes = res.data.list.map(note => ({
+        ...note,
+        type: 'note',
+        label: note.title,
+        isLeaf: true,
+        name: note.title
+      }));
+      resolve(notes);
+    });
+  } else {
+    resolve([]);
+  }
+}
+
+function handleNodeClick(data, node) {
+  if (data.type === 'note') {
+    loadNote(data.id);
+  }
+}
+
+function loadNote(id) {
+  initLoading.value = true;
+  noteGetApi(id).then(res => {
+    if (res.code === 200) {
+      currentNote.value = res.data;
+      noteForm.value = {
+        id: res.data.id,
+        title: res.data.title,
+        content: res.data.content,
+        parseContent: res.data.parseContent,
+        selectTags: res.data.tagList || [],
+        categoryIds: res.data.categoryList ? res.data.categoryList.map(c => c.id) : [],
+        contentModel: res.data.contentModel || 'AiEditor',
+        visibility: res.data.visibility,
+        status: res.data.status
+      };
+      initLoading.value = false;
+      setTimeout(() => {
+        if (editorRef.value) {
+          editorRef.value.resetContent();
+        }
+      }, 100);
+    }
+  });
+}
+
+function handleAddNote() {
+  currentNote.value = { title: '新笔记' };
+  noteForm.value = {
+    id: null,
+    title: '',
+    content: '',
+    parseContent: '',
+    selectTags: [],
+    categoryIds: [],
+    contentModel: 'AiEditor',
+    visibility: 0,
+    status: 1
+  };
+  initLoading.value = false;
+}
+
+function saveNote(status) {
+  if (!noteForm.value.title) {
+    ElMessage.error("笔记标题不能为空");
+    return;
+  }
+  let articleContent = editorRef.value.getValue();
+  noteForm.value.content = articleContent.content;
+  noteForm.value.parseContent = articleContent.parseContent;
+
+  noteForm.value.tagIds = [];
+  noteForm.value.addTags = [];
+  noteForm.value.selectTags.forEach(tag => {
+    if (tag.id) {
+      noteForm.value.tagIds.push(tag.id);
+    } else {
+      noteForm.value.addTags.push(tag);
+    }
+  });
+  noteForm.value.status = status;
+
+  if (noteForm.value.id) {
+    updateNoteApi(noteForm.value).then(res => {
+      if (res.code === 200) {
+        ElMessage.success("保存成功");
+        currentNote.value = res.data;
+        initTree();
+      } else {
+        ElMessage.error(res.msg);
+      }
+    });
+  } else {
+    noteAddApi(noteForm.value).then(res => {
+      if (res.code === 200) {
+        ElMessage.success("保存成功");
+        noteForm.value.id = res.data.id;
+        currentNote.value = res.data;
+        initTree();
+      } else {
+        ElMessage.error(res.msg);
+      }
+    });
+  }
+}
+
+function handleDeleteNote(data) {
+  ElMessageBox.confirm('确定要删除笔记[' + data.title + ']吗？', '提示', {
+    confirmButtonText: '确认',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(() => {
+    noteDelApi(data.id).then((res) => {
+      if (res.code === 200 && res.data) {
+        ElMessage.success('删除成功');
+        currentNote.value = null;
+        noteForm.value = {
+          id: null,
+          title: '',
+          content: '',
+          parseContent: '',
+          selectTags: [],
+          categoryIds: [],
+          contentModel: 'AiEditor',
+          visibility: 0,
+          status: 1
+        };
+        initTree();
+      } else {
+        ElMessage.error(res.msg);
+      }
+    });
+  }).catch(() => {})
+}
+
+function handleAddCategory() {
+  resetCategoryForm();
+  categoryDialogTitle.value = '添加分类';
+  categoryDialogVisible.value = true;
+  categoryLoading.value = true;
+  categoryListTreeApi({}).then((res) => {
+    categoryTreeData.value = [{id: -1, name: '主类目', children: handleTree(res.data, "id", "pid",'children', -1)}];
+    categoryLoading.value = false;
+  });
+}
+
+function resetCategoryForm() {
+  categoryForm.value = {
+    pid: -1,
+    id: '',
+    name: '',
+    desc: '',
+    thumbnail: '',
+    slug: ''
+  };
+  if (categoryFormRef.value) {
+    categoryFormRef.value.resetFields();
+  }
+}
+
+function submitCategoryForm() {
+  categoryFormRef.value.validate(valid => {
+    if (valid) {
+      if (categoryForm.value.id) {
+        categoryUpdateApi(categoryForm.value).then((res) => {
+          if (res.code === 200) {
+            ElMessage.success('修改成功');
+            categoryDialogVisible.value = false;
+            resetCategoryForm();
+            initTree();
+          } else {
+            ElMessage.error(res.msg);
+          }
+        })
+      } else {
+        categoryAddApi(categoryForm.value).then((res) => {
+          if (res.code === 200) {
+            ElMessage.success('添加成功');
+            categoryDialogVisible.value = false;
+            resetCategoryForm();
+            initTree();
+          } else {
+            ElMessage.error(res.msg);
+          }
+        })
+      }
+    }
+  })
+}
+
+function categoryNameChange() {
+  if (categoryForm.value.id){
+    return;
+  }
+  pinyin.setOptions({charCase: 1,checkPolyphone: false})
+  categoryForm.value.slug = pinyin.getCamelChars(categoryForm.value.name);
+}
+
+initTree();
+initTag();
+</script>
+
+<style scoped>
+.note-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #f0f2f5;
+}
+
+.note-page .el-row {
+  height: 100%;
+}
+
+.left-panel {
+  height: 100%;
+  background: #fff;
+  border-right: 1px solid #e4e7ed;
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-header {
+  padding: 12px;
+  border-bottom: 1px solid #e4e7ed;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.tree-node.note-item {
+  cursor: pointer;
+}
+
+.node-icon {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.node-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tree-node:hover .node-actions {
+  opacity: 1;
+}
+
+.right-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.editor-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e4e7ed;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.note-title.placeholder {
+  color: #909399;
+  font-weight: normal;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.note-info-bar {
+  padding: 12px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.note-info-form {
+  margin: 0;
+}
+
+.note-info-form .el-form-item {
+  margin-bottom: 0;
+  margin-right: 20px;
+}
+
+.editor-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 24px 24px;
+  min-height: 0;
+}
+
+.note-title-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+  padding: 20px 0;
+  background: transparent;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.note-title-input::placeholder {
+  color: #bfbfbf;
+  font-weight: 400;
+}
+
+.editor-wrapper :deep(> .custom-editor) {
+  flex: 1;
+  min-height: 0;
+}
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>

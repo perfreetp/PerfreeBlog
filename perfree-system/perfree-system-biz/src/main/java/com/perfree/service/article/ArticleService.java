@@ -7,6 +7,9 @@ import com.perfree.controller.auth.journal.vo.JournalAddReqVO;
 import com.perfree.controller.auth.journal.vo.JournalPageReqVO;
 import com.perfree.controller.auth.journal.vo.JournalRespVO;
 import com.perfree.controller.auth.journal.vo.JournalUpdateReqVO;
+import com.perfree.controller.auth.note.vo.NoteAddReqVO;
+import com.perfree.controller.auth.note.vo.NotePageReqVO;
+import com.perfree.controller.auth.note.vo.NoteUpdateReqVO;
 import com.perfree.controller.common.article.vo.ArchivePageReqVO;
 import com.perfree.controller.common.article.vo.ArchiveRespVO;
 import com.perfree.model.Article;
@@ -174,5 +177,13 @@ public interface ArticleService extends IService<Article> {
     List<ArticleRespVO> getHotArticleByGreatCount(Integer num);
 
     Boolean updateVisibility(ArticleUpdateVisibilityReqVO updateReqVO);
+
+    PageResult<ArticleRespVO> notePage(NotePageReqVO pageVO);
+
+    ArticleRespVO createNote(NoteAddReqVO noteAddReqVO);
+
+    ArticleRespVO updateNote(NoteUpdateReqVO noteUpdateReqVO);
+
+    ArticleRespVO getNoteById(Integer id);
 
 }

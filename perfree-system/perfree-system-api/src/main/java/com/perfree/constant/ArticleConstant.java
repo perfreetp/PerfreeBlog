@@ -11,6 +11,9 @@ public class ArticleConstant {
     /** 文章类型:动态 */
     public static final String ARTICLE_TYPE_JOURNAL = "journal";
 
+    /** 文章类型:笔记 */
+    public static final String ARTICLE_TYPE_NOTE = "note";
+
     /** 文章状态:已发布 */
     public static final Integer ARTICLE_STATUS_PUBLISHED = 0;
 

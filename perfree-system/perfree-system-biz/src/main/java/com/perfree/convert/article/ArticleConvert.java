@@ -5,6 +5,8 @@ import com.perfree.controller.auth.article.vo.*;
 import com.perfree.controller.auth.journal.vo.JournalAddReqVO;
 import com.perfree.controller.auth.journal.vo.JournalRespVO;
 import com.perfree.controller.auth.journal.vo.JournalUpdateReqVO;
+import com.perfree.controller.auth.note.vo.NoteAddReqVO;
+import com.perfree.controller.auth.note.vo.NoteUpdateReqVO;
 import com.perfree.model.Article;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;
@@ -36,5 +38,9 @@ public interface ArticleConvert {
     List<ArticleRespVO> convertToRespList(List<Article> articleList);
 
     Article convertModelByVisibilityVO(ArticleUpdateVisibilityReqVO updateReqVO);
+
+    Article convertByNoteAddReqVO(NoteAddReqVO noteAddReqVO);
+
+    Article convertByNoteUpdateReqVO(NoteUpdateReqVO noteUpdateReqVO);
 
 }
