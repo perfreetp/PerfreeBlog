@@ -79,7 +79,7 @@
                 class="note-title-input"
                 placeholder="请输入笔记标题..."
             />
-            <custom-editor :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef" v-if="!initLoading"></custom-editor>
+            <custom-editor :key="noteForm.id || 'new'" :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef"></custom-editor>
           </div>
         </div>
 
@@ -150,7 +150,7 @@ import {handleTree} from "@/core/utils/perfree.js";
 import AttachSelectInput from "@/core/components/attach/attach-select-input.vue";
 import CustomEditor from "@/core/components/editor/custom-editor.vue";
 import {ElMessage, ElMessageBox} from "element-plus";
-import {reactive, ref} from "vue";
+import {nextTick, reactive, ref} from "vue";
 import pinyin from 'js-pinyin'
 
 const treeRef = ref();
@@ -169,7 +169,6 @@ const treeData = ref([]);
 const categoryData = ref([]);
 const tagData = ref([]);
 const currentNote = ref(null);
-const initLoading = ref(false);
 const editorRef = ref();
 
 const noteForm = ref({
@@ -256,10 +255,8 @@ function handleNodeClick(data, node) {
 }
 
 function loadNote(id) {
-  initLoading.value = true;
   noteGetApi(id).then(res => {
     if (res.code === 200) {
-      currentNote.value = res.data;
       noteForm.value = {
         id: res.data.id,
         title: res.data.title,
@@ -271,18 +268,12 @@ function loadNote(id) {
         visibility: res.data.visibility,
         status: res.data.status
       };
-      initLoading.value = false;
-      setTimeout(() => {
-        if (editorRef.value) {
-          editorRef.value.resetContent();
-        }
-      }, 100);
+      currentNote.value = res.data;
     }
   });
 }
 
 function handleAddNote() {
-  currentNote.value = { title: '新笔记' };
   noteForm.value = {
     id: null,
     title: '',
@@ -294,7 +285,7 @@ function handleAddNote() {
     visibility: 0,
     status: 1
   };
-  initLoading.value = false;
+  currentNote.value = { title: '新笔记' };
 }
 
 function saveNote(status) {
