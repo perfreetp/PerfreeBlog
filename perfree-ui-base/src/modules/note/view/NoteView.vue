@@ -79,7 +79,7 @@
                 class="note-title-input"
                 placeholder="请输入笔记标题..."
             />
-            <custom-editor :key="noteForm.id || 'new'" :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef"></custom-editor>
+            <custom-editor :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef"></custom-editor>
           </div>
         </div>
 
@@ -150,7 +150,7 @@ import {handleTree} from "@/core/utils/perfree.js";
 import AttachSelectInput from "@/core/components/attach/attach-select-input.vue";
 import CustomEditor from "@/core/components/editor/custom-editor.vue";
 import {ElMessage, ElMessageBox} from "element-plus";
-import {nextTick, reactive, ref} from "vue";
+import {reactive, ref} from "vue";
 import pinyin from 'js-pinyin'
 
 const treeRef = ref();
