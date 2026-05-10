@@ -79,7 +79,7 @@
                 class="note-title-input"
                 placeholder="请输入笔记标题..."
             />
-            <custom-editor :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef"></custom-editor>
+            <custom-editor :key="editorKey" :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef"></custom-editor>
           </div>
         </div>
 
@@ -170,6 +170,7 @@ const categoryData = ref([]);
 const tagData = ref([]);
 const currentNote = ref(null);
 const editorRef = ref();
+const editorKey = ref(0);
 
 const noteForm = ref({
   id: null,
@@ -257,18 +258,23 @@ function handleNodeClick(data, node) {
 function loadNote(id) {
   noteGetApi(id).then(res => {
     if (res.code === 200) {
+      const data = res.data;
+      const categoryIds = data.categoryList 
+        ? data.categoryList.filter(Boolean).map(c => c?.id).filter(Boolean) 
+        : [];
       noteForm.value = {
-        id: res.data.id,
-        title: res.data.title,
-        content: res.data.content,
-        parseContent: res.data.parseContent,
-        selectTags: res.data.tagList || [],
-        categoryIds: res.data.categoryList ? res.data.categoryList.map(c => c.id) : [],
-        contentModel: res.data.contentModel || 'AiEditor',
-        visibility: res.data.visibility,
-        status: res.data.status
+        id: data.id,
+        title: data.title,
+        content: data.content,
+        parseContent: data.parseContent,
+        selectTags: data.tagList || [],
+        categoryIds: categoryIds,
+        contentModel: data.contentModel || 'AiEditor',
+        visibility: data.visibility,
+        status: data.status
       };
-      currentNote.value = res.data;
+      currentNote.value = data;
+      editorKey.value++;
     }
   });
 }
@@ -286,6 +292,7 @@ function handleAddNote() {
     status: 1
   };
   currentNote.value = { title: '新笔记' };
+  editorKey.value++;
 }
 
 function saveNote(status) {
