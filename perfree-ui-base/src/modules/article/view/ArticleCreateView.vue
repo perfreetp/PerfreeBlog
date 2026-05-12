@@ -6,15 +6,39 @@
         <el-col :xs="24" :sm="24" :md="17" :lg="17" :xl="17" class="editor-col">
           <div class="editor-card">
             <div class="title-wrapper">
-              <input
-                v-model="addForm.title"
-                class="article-title-input"
-                placeholder="请输入文章标题..."
-                @change="titleChange"
-              />
+              <div class="title-input-wrapper">
+                <input
+                  v-model="addForm.title"
+                  class="article-title-input"
+                  placeholder="请输入文章标题..."
+                  @change="titleChange"
+                />
+                <el-button 
+                  type="primary" 
+                  :icon="MagicStick" 
+                  size="small"
+                  :loading="aiLoading.value"
+                  @click="aiOptimizeTitle"
+                  class="ai-title-btn"
+                >
+                  AI优化
+                </el-button>
+              </div>
             </div>
             <div class="editor-wrapper">
               <custom-editor :editor-type="addForm.contentModel" :init-value="addForm.content" :height="'100%'" ref="editorRef" v-if="!initLoading"></custom-editor>
+            </div>
+            <div class="ai-toolbar">
+              <el-button 
+                type="primary" 
+                :icon="MagicStick" 
+                size="small"
+                :loading="aiLoading.value"
+                @click="aiContinueWriting"
+              >
+                AI续写
+              </el-button>
+              <span class="ai-tip">点击AI续写，基于当前内容继续创作</span>
             </div>
           </div>
         </el-col>
@@ -62,13 +86,49 @@
               <!-- 摘要与SEO -->
               <el-collapse-item title="摘要与SEO" name="seo">
                 <el-form-item label="文章摘要" prop="summary">
-                  <el-input v-model="addForm.summary" placeholder="请输入文章摘要" :autosize="{ minRows: 2, maxRows: 4 }" type="textarea"/>
+                  <div class="ai-input-wrapper">
+                    <el-input v-model="addForm.summary" placeholder="请输入文章摘要" :autosize="{ minRows: 2, maxRows: 4 }" type="textarea"/>
+                    <el-button 
+                      type="primary" 
+                      :icon="MagicStick" 
+                      size="small"
+                      :loading="aiLoading.value"
+                      @click="aiGenerateSummary"
+                      class="ai-input-btn"
+                    >
+                      AI生成
+                    </el-button>
+                  </div>
                 </el-form-item>
                 <el-form-item label="SEO关键字" prop="metaKeywords">
-                  <el-input v-model="addForm.metaKeywords" placeholder="请输入SEO关键字" clearable/>
+                  <div class="ai-input-wrapper">
+                    <el-input v-model="addForm.metaKeywords" placeholder="请输入SEO关键字" clearable/>
+                    <el-button 
+                      type="primary" 
+                      :icon="MagicStick" 
+                      size="small"
+                      :loading="aiLoading.value"
+                      @click="aiGenerateSeoKeywords"
+                      class="ai-input-btn"
+                    >
+                      AI生成
+                    </el-button>
+                  </div>
                 </el-form-item>
                 <el-form-item label="SEO描述" prop="metaDescription">
-                  <el-input v-model="addForm.metaDescription" placeholder="请输入SEO描述" :autosize="{ minRows: 2, maxRows: 4 }" type="textarea"/>
+                  <div class="ai-input-wrapper">
+                    <el-input v-model="addForm.metaDescription" placeholder="请输入SEO描述" :autosize="{ minRows: 2, maxRows: 4 }" type="textarea"/>
+                    <el-button 
+                      type="primary" 
+                      :icon="MagicStick" 
+                      size="small"
+                      :loading="aiLoading.value"
+                      @click="aiGenerateSeoDescription"
+                      class="ai-input-btn"
+                    >
+                      AI生成
+                    </el-button>
+                  </div>
                 </el-form-item>
               </el-collapse-item>
 
@@ -111,13 +171,22 @@ import {handleTree} from "@/core/utils/perfree.js";
 import {ElMessage, ElMessageBox} from "element-plus";
 import pinyin from 'js-pinyin'
 import {closeTab, toPage} from "@/core/utils/tabs.js";
-import {reactive, ref} from "vue";
+import {reactive, ref, watch} from "vue";
+import {MagicStick} from "@element-plus/icons-vue";
 import {useDark} from "@vueuse/core";
+import {
+  continueWritingApi,
+  generateSummaryApi,
+  optimizeSeoTitleApi,
+  generateSeoKeywordsApi,
+  generateSeoDescriptionApi
+} from "@/core/api/ai.js";
 
 const isDark = useDark();
 const addFormRef = ref();
 let initLoading = ref(true);
 const activeCollapse = ref(['basic']);
+const aiLoading = ref(false);
 const addForm = ref({
   id: null,
   title: '',
@@ -289,6 +358,188 @@ function initArticle() {
     }
     initLoading.value = false;
   })
+}
+
+/**
+ * AI优化标题
+ */
+async function aiOptimizeTitle() {
+  if (!addForm.value.title) {
+    ElMessage.warning("请先输入文章标题");
+    return;
+  }
+  let articleContent = '';
+  try {
+    if (editorRef.value && editorRef.value.getValue) {
+      const content = editorRef.value.getValue();
+      articleContent = content.content || '';
+    }
+  } catch (e) {
+    console.error("获取文章内容失败", e);
+  }
+  
+  aiLoading.value = true;
+  try {
+    const res = await optimizeSeoTitleApi({
+      title: addForm.value.title,
+      content: articleContent
+    });
+    if (res.code === 200) {
+      addForm.value.title = res.data;
+      ElMessage.success("标题优化成功");
+      titleChange();
+    } else {
+      ElMessage.error(res.msg || "标题优化失败");
+    }
+  } catch (e) {
+    ElMessage.error("标题优化失败: " + e.message);
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
+/**
+ * AI生成摘要
+ */
+async function aiGenerateSummary() {
+  let articleContent = '';
+  try {
+    if (editorRef.value && editorRef.value.getValue) {
+      const content = editorRef.value.getValue();
+      articleContent = content.content || '';
+    }
+  } catch (e) {
+    console.error("获取文章内容失败", e);
+  }
+  
+  if (!articleContent) {
+    ElMessage.warning("请先输入文章内容");
+    return;
+  }
+  
+  aiLoading.value = true;
+  try {
+    const res = await generateSummaryApi({ content: articleContent });
+    if (res.code === 200) {
+      addForm.value.summary = res.data;
+      ElMessage.success("摘要生成成功");
+    } else {
+      ElMessage.error(res.msg || "摘要生成失败");
+    }
+  } catch (e) {
+    ElMessage.error("摘要生成失败: " + e.message);
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
+/**
+ * AI生成SEO关键词
+ */
+async function aiGenerateSeoKeywords() {
+  let articleContent = '';
+  try {
+    if (editorRef.value && editorRef.value.getValue) {
+      const content = editorRef.value.getValue();
+      articleContent = content.content || '';
+    }
+  } catch (e) {
+    console.error("获取文章内容失败", e);
+  }
+  
+  if (!articleContent) {
+    ElMessage.warning("请先输入文章内容");
+    return;
+  }
+  
+  aiLoading.value = true;
+  try {
+    const res = await generateSeoKeywordsApi({ content: articleContent });
+    if (res.code === 200) {
+      addForm.value.metaKeywords = res.data;
+      ElMessage.success("SEO关键词生成成功");
+    } else {
+      ElMessage.error(res.msg || "SEO关键词生成失败");
+    }
+  } catch (e) {
+    ElMessage.error("SEO关键词生成失败: " + e.message);
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
+/**
+ * AI生成SEO描述
+ */
+async function aiGenerateSeoDescription() {
+  let articleContent = '';
+  try {
+    if (editorRef.value && editorRef.value.getValue) {
+      const content = editorRef.value.getValue();
+      articleContent = content.content || '';
+    }
+  } catch (e) {
+    console.error("获取文章内容失败", e);
+  }
+  
+  if (!articleContent) {
+    ElMessage.warning("请先输入文章内容");
+    return;
+  }
+  
+  aiLoading.value = true;
+  try {
+    const res = await generateSeoDescriptionApi({ content: articleContent });
+    if (res.code === 200) {
+      addForm.value.metaDescription = res.data;
+      ElMessage.success("SEO描述生成成功");
+    } else {
+      ElMessage.error(res.msg || "SEO描述生成失败");
+    }
+  } catch (e) {
+    ElMessage.error("SEO描述生成失败: " + e.message);
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
+/**
+ * AI续写文章
+ */
+async function aiContinueWriting() {
+  let articleContent = '';
+  try {
+    if (editorRef.value && editorRef.value.getValue) {
+      const content = editorRef.value.getValue();
+      articleContent = content.content || '';
+    }
+  } catch (e) {
+    console.error("获取文章内容失败", e);
+  }
+  
+  if (!articleContent) {
+    ElMessage.warning("请先输入文章内容");
+    return;
+  }
+  
+  aiLoading.value = true;
+  try {
+    const res = await continueWritingApi({ content: articleContent });
+    if (res.code === 200) {
+      // 将续写内容追加到编辑器
+      if (editorRef.value && editorRef.setValue) {
+        const newContent = articleContent + '\n\n' + res.data;
+        editorRef.value.setValue(newContent);
+      }
+      ElMessage.success("续写成功");
+    } else {
+      ElMessage.error(res.msg || "续写失败");
+    }
+  } catch (e) {
+    ElMessage.error("续写失败: " + e.message);
+  } finally {
+    aiLoading.value = false;
+  }
 }
 
 initArticle();
@@ -491,5 +742,51 @@ initTag();
 
 :deep(.aie-container .aie-main) {
   height: 100% !important;
+}
+
+/* AI相关样式 */
+.title-input-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-title-btn {
+  flex-shrink: 0;
+}
+
+.ai-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.is-dark .ai-toolbar {
+  border-top-color: #414243;
+  background: #262727;
+}
+
+.ai-tip {
+  font-size: 12px;
+  color: #909399;
+}
+
+.is-dark .ai-tip {
+  color: #7f838b;
+}
+
+.ai-input-wrapper {
+  position: relative;
+}
+
+.ai-input-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
 }
 </style>

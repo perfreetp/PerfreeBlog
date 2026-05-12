@@ -74,12 +74,23 @@
           </div>
 
           <div class="editor-wrapper">
-            <input
-                v-model="noteForm.title"
-                class="note-title-input"
-                placeholder="请输入笔记标题..."
-            />
-            <custom-editor :key="editorKey" :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 60px)'" ref="editorRef"></custom-editor>
+            <div class="note-title-wrapper">
+              <input
+                  v-model="noteForm.title"
+                  class="note-title-input"
+                  placeholder="请输入笔记标题..."
+              />
+              <el-button 
+                type="primary" 
+                :icon="MagicStick" 
+                size="small"
+                :loading="aiLoading.value"
+                @click="aiContinueWriting"
+              >
+                AI续写
+              </el-button>
+            </div>
+            <custom-editor :key="editorKey" :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 90px)'" ref="editorRef"></custom-editor>
           </div>
         </div>
 
@@ -142,7 +153,7 @@
 </template>
 
 <script setup>
-import {Check, Delete, Edit, FolderOpened, Plus, Refresh} from "@element-plus/icons-vue";
+import {Check, Delete, Edit, FolderOpened, MagicStick, Plus, Refresh} from "@element-plus/icons-vue";
 import {categoryAddApi, categoryListTreeApi, categoryUpdateApi} from "../api/category.js";
 import {noteAddApi, noteDelApi, noteGetApi, notePageApi, updateNoteApi} from "../api/note.js";
 import {getAllTag} from "../api/tag.js";
@@ -151,7 +162,8 @@ import AttachSelectInput from "@/core/components/attach/attach-select-input.vue"
 import CustomEditor from "@/core/components/editor/custom-editor.vue";
 import {ElMessage, ElMessageBox} from "element-plus";
 import {reactive, ref} from "vue";
-import pinyin from 'js-pinyin'
+import pinyin from 'js-pinyin';
+import {continueWritingApi} from "@/core/api/ai.js";
 
 const treeRef = ref();
 const treeProps = reactive({
@@ -171,6 +183,7 @@ const tagData = ref([]);
 const currentNote = ref(null);
 const editorRef = ref();
 const editorKey = ref(0);
+const aiLoading = ref(false);
 
 const noteForm = ref({
   id: null,
@@ -431,6 +444,41 @@ function categoryNameChange() {
   categoryForm.value.slug = pinyin.getCamelChars(categoryForm.value.name);
 }
 
+async function aiContinueWriting() {
+  let articleContent = '';
+  try {
+    if (editorRef.value && editorRef.value.getValue) {
+      const content = editorRef.value.getValue();
+      articleContent = content.content || '';
+    }
+  } catch (e) {
+    console.error("获取笔记内容失败", e);
+  }
+  
+  if (!articleContent) {
+    ElMessage.warning("请先输入笔记内容");
+    return;
+  }
+  
+  aiLoading.value = true;
+  try {
+    const res = await continueWritingApi({ content: articleContent });
+    if (res.code === 200) {
+      if (editorRef.value && editorRef.setValue) {
+        const newContent = articleContent + '\n\n' + res.data;
+        editorRef.value.setValue(newContent);
+      }
+      ElMessage.success("续写成功");
+    } else {
+      ElMessage.error(res.msg || "续写失败");
+    }
+  } catch (e) {
+    ElMessage.error("续写失败: " + e.message);
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
 initTree();
 initTag();
 </script>
@@ -562,17 +610,26 @@ initTag();
   min-height: 0;
 }
 
+.note-title-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
 .note-title-input {
+  flex: 1;
   width: 100%;
   border: none;
   outline: none;
   font-size: 24px;
   font-weight: 600;
   color: #1a1a1a;
-  padding: 20px 0;
   background: transparent;
-  border-bottom: 1px solid #f0f0f0;
-  margin-bottom: 16px;
+  padding: 0;
 }
 
 .note-title-input::placeholder {
