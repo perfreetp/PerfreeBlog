@@ -50,13 +50,13 @@ public class AIServiceImpl implements AIService {
             String model = config.get("WEB_AI_MODEL_NAME");
 
             if (apiKey == null || apiKey.isEmpty()) {
-                throw new ServiceException("AI API Key 未配置");
+                throw new ServiceException(500, "AI API Key 未配置");
             }
             if (endpoint == null || endpoint.isEmpty()) {
-                throw new ServiceException("AI API Endpoint 未配置");
+                throw new ServiceException(500, "AI API Endpoint 未配置");
             }
             if (model == null || model.isEmpty()) {
-                throw new ServiceException("AI Model 未配置");
+                throw new ServiceException(500, "AI Model 未配置");
             }
 
             // 构建请求体
@@ -80,7 +80,7 @@ public class AIServiceImpl implements AIService {
 
             if (!response.isOk()) {
                 logger.error("AI API 请求失败: {}", response.body());
-                throw new ServiceException("AI API 请求失败: " + response.getStatus());
+                throw new ServiceException(500, "AI API 请求失败: " + response.getStatus());
             }
 
             JSONObject result = JSONUtil.parseObj(response.body());
@@ -93,7 +93,7 @@ public class AIServiceImpl implements AIService {
             throw e;
         } catch (Exception e) {
             logger.error("调用AI服务异常", e);
-            throw new ServiceException("调用AI服务失败: " + e.getMessage());
+            throw new ServiceException(500, "调用AI服务失败: " + e.getMessage());
         }
     }
 
