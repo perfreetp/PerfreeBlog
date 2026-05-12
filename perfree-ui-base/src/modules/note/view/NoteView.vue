@@ -456,6 +456,44 @@ function categoryNameChange() {
   categoryForm.value.slug = pinyin.getCamelChars(categoryForm.value.name);
 }
 
+async function aiOptimizeTitle() {
+  if (!noteForm.value.title) {
+    ElMessage.warning("请先输入笔记标题");
+    return;
+  }
+  let articleContent = '';
+  try {
+    if (editorRef.value && editorRef.value.getValue) {
+      const content = editorRef.value.getValue();
+      articleContent = content.content || '';
+    }
+  } catch (e) {
+    console.error("获取笔记内容失败", e);
+  }
+  
+  aiLoading.value = true;
+  try {
+    const res = await optimizeSeoTitleApi({
+      title: noteForm.value.title,
+      content: articleContent
+    });
+    if (res.code === 200) {
+      if (res.data && res.data.trim()) {
+        noteForm.value.title = res.data.trim();
+        ElMessage.success("标题优化成功");
+      } else {
+        ElMessage.warning("AI 返回的标题为空，请重试");
+      }
+    } else {
+      ElMessage.error(res.msg || "标题优化失败");
+    }
+  } catch (e) {
+    ElMessage.error("标题优化失败: " + e.message);
+  } finally {
+    aiLoading.value = false;
+  }
+}
+
 async function aiContinueWriting() {
   let articleContent = '';
   try {
@@ -467,8 +505,8 @@ async function aiContinueWriting() {
     console.error("获取笔记内容失败", e);
   }
   
-  if (!articleContent) {
-    ElMessage.warning("请先输入笔记内容");
+  if (!articleContent || articleContent.trim().length < 10) {
+    ElMessage.warning("请先输入至少10个字符的笔记内容");
     return;
   }
   
@@ -476,11 +514,17 @@ async function aiContinueWriting() {
   try {
     const res = await continueWritingApi({ content: articleContent });
     if (res.code === 200) {
-      if (editorRef.value && editorRef.setValue) {
-        const newContent = articleContent + '\n\n' + res.data;
-        editorRef.value.setValue(newContent);
+      if (res.data && res.data.trim()) {
+        const newContent = articleContent + '\n\n' + res.data.trim();
+        if (editorRef.value.setValue) {
+          editorRef.value.setValue(newContent);
+        } else if (editorRef.value.setContent) {
+          editorRef.value.setContent(newContent);
+        }
+        ElMessage.success("续写成功");
+      } else {
+        ElMessage.warning("AI 返回的内容为空，请重试");
       }
-      ElMessage.success("续写成功");
     } else {
       ElMessage.error(res.msg || "续写失败");
     }
@@ -659,5 +703,19 @@ initTag();
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.ai-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 0;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 16px;
+}
+
+.ai-tip {
+  font-size: 12px;
+  color: #909399;
 }
 </style>
