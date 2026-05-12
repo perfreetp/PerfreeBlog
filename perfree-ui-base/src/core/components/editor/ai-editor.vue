@@ -223,9 +223,16 @@ function setContent(content) {
   }
 }
 
+function setValue(content) {
+  if (aiEditor) {
+    aiEditor.setContent(content || '');
+  }
+}
+
 defineExpose({
   resetContent,
   setContent,
+  setValue,
   getValue
 })
 </script>

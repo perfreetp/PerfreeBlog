@@ -85,12 +85,24 @@
                 :icon="MagicStick" 
                 size="small"
                 :loading="aiLoading.value"
+                @click="aiOptimizeTitle"
+              >
+                AI优化
+              </el-button>
+            </div>
+            <custom-editor :key="editorKey" :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 130px)'" ref="editorRef"></custom-editor>
+            <div class="ai-toolbar">
+              <el-button 
+                type="primary" 
+                :icon="MagicStick" 
+                size="small"
+                :loading="aiLoading.value"
                 @click="aiContinueWriting"
               >
                 AI续写
               </el-button>
+              <span class="ai-tip">点击 AI 续写，AI 将根据当前内容自动续写</span>
             </div>
-            <custom-editor :key="editorKey" :editor-type="noteForm.contentModel" :init-value="noteForm.content" :height="'calc(100% - 90px)'" ref="editorRef"></custom-editor>
           </div>
         </div>
 
@@ -163,7 +175,7 @@ import CustomEditor from "@/core/components/editor/custom-editor.vue";
 import {ElMessage, ElMessageBox} from "element-plus";
 import {reactive, ref} from "vue";
 import pinyin from 'js-pinyin';
-import {continueWritingApi} from "@/core/api/ai.js";
+import {continueWritingApi, optimizeSeoTitleApi} from "@/core/api/ai.js";
 
 const treeRef = ref();
 const treeProps = reactive({

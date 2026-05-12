@@ -378,16 +378,12 @@ async function aiOptimizeTitle() {
     console.error("获取文章内容失败", e);
   }
   
-  console.log("AI优化标题 - 当前标题:", addForm.value.title);
-  console.log("AI优化标题 - 文章内容:", articleContent);
-  
   aiLoading.value = true;
   try {
     const res = await optimizeSeoTitleApi({
       title: addForm.value.title,
       content: articleContent
     });
-    console.log("AI优化标题 - API响应:", res);
     if (res.code === 200) {
       if (res.data && res.data.trim()) {
         addForm.value.title = res.data.trim();
@@ -400,7 +396,6 @@ async function aiOptimizeTitle() {
       ElMessage.error(res.msg || "标题优化失败");
     }
   } catch (e) {
-    console.error("AI优化标题失败:", e);
     ElMessage.error("标题优化失败: " + e.message);
   } finally {
     aiLoading.value = false;
@@ -526,8 +521,6 @@ async function aiContinueWriting() {
     console.error("获取文章内容失败", e);
   }
   
-  console.log("AI续写 - 当前内容:", articleContent);
-  
   if (!articleContent || articleContent.trim().length < 10) {
     ElMessage.warning("请先输入至少10个字符的文章内容");
     return;
@@ -536,17 +529,15 @@ async function aiContinueWriting() {
   aiLoading.value = true;
   try {
     const res = await continueWritingApi({ content: articleContent });
-    console.log("AI续写 - API响应:", res);
     if (res.code === 200) {
       if (res.data && res.data.trim()) {
-        // 将续写内容追加到编辑器
-        if (editorRef.value && editorRef.setValue) {
-          const newContent = articleContent + '\n\n' + res.data.trim();
+        const newContent = articleContent + '\n\n' + res.data.trim();
+        if (editorRef.value.setValue) {
           editorRef.value.setValue(newContent);
-          ElMessage.success("续写成功");
-        } else {
-          ElMessage.error("编辑器方法不可用");
+        } else if (editorRef.value.setContent) {
+          editorRef.value.setContent(newContent);
         }
+        ElMessage.success("续写成功");
       } else {
         ElMessage.warning("AI返回的内容为空，请重试");
       }
@@ -799,13 +790,20 @@ initTag();
 }
 
 .ai-input-wrapper {
-  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.ai-input-wrapper :deep(.el-input),
+.ai-input-wrapper :deep(.el-textarea) {
+  flex: 1;
+  min-width: 0;
 }
 
 .ai-input-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 10;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 </style>

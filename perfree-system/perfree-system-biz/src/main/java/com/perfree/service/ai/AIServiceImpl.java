@@ -127,41 +127,87 @@ public class AIServiceImpl implements AIService {
 
     @Override
     public String continueWriting(String content) {
-        String prompt = "请续写以下内容，保持原文的风格和语气，续写长度适中：\n\n" + content;
-        return callLLM(prompt);
+        String prompt = "你是一位专业的文章写作助手。请续写以下内容，保持原文的风格和语气，续写长度适中。\n\n" +
+                "要求：\n" +
+                "1. 只返回续写的内容，不要返回原文\n" +
+                "2. 不要任何解释、说明或前后缀\n" +
+                "3. 保持与原文连贯的过渡\n\n" +
+                "原文：" + content + "\n\n" +
+                "请直接输出续写的内容：";
+        String result = callLLM(prompt);
+        return result.trim();
     }
 
     @Override
     public String generateSummary(String content) {
-        String prompt = "请为以下内容生成一个简洁的摘要，摘要长度控制在100-200字之间：\n\n" + content;
-        return callLLM(prompt);
+        String prompt = "你是一位专业的文章摘要生成助手。请为以下内容生成一个简洁的摘要。\n\n" +
+                "要求：\n" +
+                "1. 摘要长度控制在100-200字之间\n" +
+                "2. 准确概括文章主要内容\n" +
+                "3. 只返回摘要文本，不要任何解释或说明\n\n" +
+                "文章内容：" + content + "\n\n" +
+                "请直接输出摘要：";
+        String result = callLLM(prompt);
+        return result.trim();
     }
 
     @Override
     public String optimizeSeoTitle(String title, String content) {
-        String prompt = "请根据以下文章内容，优化SEO标题，要求：\n" +
+        String prompt = "你是一位专业的SEO优化专家。请根据以下文章内容，优化SEO标题。\n\n" +
+                "要求：\n" +
                 "1. 标题长度控制在30-60个字符之间\n" +
                 "2. 包含主要关键词\n" +
-                "3. 具有吸引力\n" +
-                "4. 适合搜索引擎优化\n\n" +
-                "原标题: " + title + "\n\n" +
-                "文章内容: " + content;
-        return callLLM(prompt);
+                "3. 具有吸引力，适合搜索引擎优化\n" +
+                "4. 只返回优化后的标题文本，不要任何解释、说明或前后缀\n" +
+                "5. 不要使用markdown格式\n\n" +
+                "原标题：" + title + "\n\n" +
+                "文章内容：" + content + "\n\n" +
+                "请直接输出优化后的标题：";
+        String result = callLLM(prompt);
+        // 清理返回内容，确保只返回标题
+        return result
+                .replaceAll("^#.*$", "")
+                .replaceAll("^优化后的标题[:：]\\s*", "")
+                .replaceAll("^标题[:：]\\s*", "")
+                .replaceAll("^【.*】$", "")
+                .replaceAll("^[\"'`]|[\"'`]$", "")
+                .trim();
     }
 
     @Override
     public String generateSeoKeywords(String content) {
-        String prompt = "请为以下文章内容生成5-8个SEO关键词，用英文逗号分隔，关键词要精准且有搜索量：\n\n" + content;
-        return callLLM(prompt);
+        String prompt = "你是一位专业的SEO优化专家。请为以下文章内容生成5-8个SEO关键词。\n\n" +
+                "要求：\n" +
+                "1. 用英文逗号分隔关键词\n" +
+                "2. 关键词要精准且有搜索量\n" +
+                "3. 只返回关键词，不要任何解释或说明\n" +
+                "4. 不要使用数字编号\n\n" +
+                "文章内容：" + content + "\n\n" +
+                "请直接输出关键词：";
+        String result = callLLM(prompt);
+        return result
+                .replaceAll("^关键词[:：]\\s*", "")
+                .replaceAll("^\\d+[.、]\\s*", "")
+                .replaceAll("\\n", ",")
+                .replaceAll("[,，]+", ",")
+                .trim();
     }
 
     @Override
     public String generateSeoDescription(String content) {
-        String prompt = "请为以下文章内容生成SEO描述，要求：\n" +
+        String prompt = "你是一位专业的SEO优化专家。请为以下文章内容生成SEO描述。\n\n" +
+                "要求：\n" +
                 "1. 长度控制在50-160个字符之间\n" +
                 "2. 包含主要关键词\n" +
                 "3. 能准确概括文章内容\n" +
-                "4. 具有吸引力能提高点击率\n\n" + content;
-        return callLLM(prompt);
+                "4. 具有吸引力能提高点击率\n" +
+                "5. 只返回描述文本，不要任何解释或说明\n\n" +
+                "文章内容：" + content + "\n\n" +
+                "请直接输出SEO描述：";
+        String result = callLLM(prompt);
+        return result
+                .replaceAll("^SEO描述[:：]\\s*", "")
+                .replaceAll("^描述[:：]\\s*", "")
+                .trim();
     }
 }
