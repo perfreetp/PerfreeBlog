@@ -59,35 +59,63 @@ public class AIServiceImpl implements AIService {
                 throw new ServiceException(500, "AI Model 未配置");
             }
 
+            logger.info("调用AI服务 - endpoint: {}, model: {}", endpoint, model);
+            logger.debug("请求prompt: {}", prompt);
+
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", model);
             requestBody.put("temperature", 0.7);
             requestBody.put("max_tokens", 2000);
+            requestBody.put("stream", false); // 确保不是流式响应
             
             Map<String, String> message = new HashMap<>();
             message.put("role", "user");
             message.put("content", prompt);
             requestBody.put("messages", new Object[]{message});
 
+            String requestBodyStr = JSONUtil.toJsonStr(requestBody);
+            logger.debug("请求体: {}", requestBodyStr);
+
             // 发送请求
             HttpResponse response = HttpRequest.post(endpoint)
                     .header("Content-Type", "application/json")
                     .header("Authorization", "Bearer " + apiKey)
-                    .body(JSONUtil.toJsonStr(requestBody))
+                    .body(requestBodyStr)
                     .timeout(60000)
                     .execute();
 
+            String responseBody = response.body();
+            logger.info("AI API 响应状态: {}, 响应内容: {}", response.getStatus(), responseBody);
+
             if (!response.isOk()) {
-                logger.error("AI API 请求失败: {}", response.body());
-                throw new ServiceException(500, "AI API 请求失败: " + response.getStatus());
+                logger.error("AI API 请求失败 - 状态码: {}, 响应: {}", response.getStatus(), responseBody);
+                throw new ServiceException(500, "AI API 请求失败: " + response.getStatus() + " - " + responseBody);
             }
 
-            JSONObject result = JSONUtil.parseObj(response.body());
-            return result.getJSONArray("choices")
+            JSONObject result = JSONUtil.parseObj(responseBody);
+            
+            // 检查是否有错误信息
+            if (result.containsKey("error")) {
+                JSONObject error = result.getJSONObject("error");
+                String errorMsg = error.getStr("message", "未知错误");
+                logger.error("AI API 返回错误: {}", errorMsg);
+                throw new ServiceException(500, "AI API 错误: " + errorMsg);
+            }
+
+            // 检查choices是否存在
+            if (!result.containsKey("choices") || result.getJSONArray("choices").isEmpty()) {
+                logger.error("AI API 响应中没有choices字段或为空");
+                throw new ServiceException(500, "AI API 响应格式错误: 没有返回内容");
+            }
+
+            String content = result.getJSONArray("choices")
                     .getJSONObject(0)
                     .getJSONObject("message")
                     .getStr("content");
+
+            logger.info("AI生成内容成功, 长度: {}", content != null ? content.length() : 0);
+            return content;
 
         } catch (ServiceException e) {
             throw e;

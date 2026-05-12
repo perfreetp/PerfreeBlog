@@ -378,20 +378,29 @@ async function aiOptimizeTitle() {
     console.error("获取文章内容失败", e);
   }
   
+  console.log("AI优化标题 - 当前标题:", addForm.value.title);
+  console.log("AI优化标题 - 文章内容:", articleContent);
+  
   aiLoading.value = true;
   try {
     const res = await optimizeSeoTitleApi({
       title: addForm.value.title,
       content: articleContent
     });
+    console.log("AI优化标题 - API响应:", res);
     if (res.code === 200) {
-      addForm.value.title = res.data;
-      ElMessage.success("标题优化成功");
-      titleChange();
+      if (res.data && res.data.trim()) {
+        addForm.value.title = res.data.trim();
+        ElMessage.success("标题优化成功");
+        titleChange();
+      } else {
+        ElMessage.warning("AI返回的标题为空，请重试");
+      }
     } else {
       ElMessage.error(res.msg || "标题优化失败");
     }
   } catch (e) {
+    console.error("AI优化标题失败:", e);
     ElMessage.error("标题优化失败: " + e.message);
   } finally {
     aiLoading.value = false;
@@ -517,25 +526,35 @@ async function aiContinueWriting() {
     console.error("获取文章内容失败", e);
   }
   
-  if (!articleContent) {
-    ElMessage.warning("请先输入文章内容");
+  console.log("AI续写 - 当前内容:", articleContent);
+  
+  if (!articleContent || articleContent.trim().length < 10) {
+    ElMessage.warning("请先输入至少10个字符的文章内容");
     return;
   }
   
   aiLoading.value = true;
   try {
     const res = await continueWritingApi({ content: articleContent });
+    console.log("AI续写 - API响应:", res);
     if (res.code === 200) {
-      // 将续写内容追加到编辑器
-      if (editorRef.value && editorRef.setValue) {
-        const newContent = articleContent + '\n\n' + res.data;
-        editorRef.value.setValue(newContent);
+      if (res.data && res.data.trim()) {
+        // 将续写内容追加到编辑器
+        if (editorRef.value && editorRef.setValue) {
+          const newContent = articleContent + '\n\n' + res.data.trim();
+          editorRef.value.setValue(newContent);
+          ElMessage.success("续写成功");
+        } else {
+          ElMessage.error("编辑器方法不可用");
+        }
+      } else {
+        ElMessage.warning("AI返回的内容为空，请重试");
       }
-      ElMessage.success("续写成功");
     } else {
       ElMessage.error(res.msg || "续写失败");
     }
   } catch (e) {
+    console.error("AI续写失败:", e);
     ElMessage.error("续写失败: " + e.message);
   } finally {
     aiLoading.value = false;

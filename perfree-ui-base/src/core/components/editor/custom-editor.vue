@@ -28,9 +28,14 @@ function getValue() {
   return editorRef.value.getValue();
 }
 
+function setValue(content) {
+  editorRef.value.setContent(content);
+}
+
 defineExpose({
   resetContent,
   setContent,
+  setValue,
   getValue
 })
 </script>
